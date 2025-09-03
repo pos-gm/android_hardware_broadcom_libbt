@@ -1,0 +1,71 @@
+soong_namespace {}
+
+package {
+    // See: http://go/android-license-faq
+    default_applicable_licenses: [
+        "Android-Apache-2.0",
+    ],
+}
+
+cc_genrule {
+    name: "gen-libbt-vnd_buildcfg.h",
+    proprietary: true,
+    tool_files: ["gen-buildcfg.sh"],
+    srcs: select((soong_config_variable("brcm_libbt", "custom_bt_config"),
+                  soong_config_variable("brcm_libbt", "device")), {
+        (any @ custom_bt_config, default): [custom_bt_config],
+        (default, any @ device): ["include/vnd_" + device + ".txt"],
+        (default, default): ["include/vnd_generic.txt"],
+    }),
+    out: ["vnd_buildcfg.h"],
+    cmd: "$(location gen-buildcfg.sh) $(in) $(out)",
+}
+
+cc_library_shared {
+    name: "libbt-vendor",
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-switch",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-Wno-unused-variable",
+    ] + select(soong_config_variable("brcm_libbt", "bdroid_buildcfg_include_dir"), {
+        any: ["-DHAS_BDROID_BUILDCFG"],
+        default: ["-DHAS_NO_BDROID_BUILDCFG"],
+    }) + select(soong_config_variable("brcm_libbt", "use_bluetooth_bcm4343"), {
+        true: ["-DUSE_BLUETOOTH_BCM4343"],
+        default: [],
+    }),
+    include_dirs: [
+        "packages/modules/Bluetooth/system",
+        "packages/modules/Bluetooth/system/device/include",
+        "packages/modules/Bluetooth/system/hci/include",
+        "packages/modules/Bluetooth/system/include",
+    ] + select(soong_config_variable("brcm_libbt", "bdroid_buildcfg_include_dir"), {
+        any @ include_dir: [include_dir],
+        default: [],
+    }),
+    local_include_dirs: ["include"],
+    generated_headers: ["gen-libbt-vnd_buildcfg.h"],
+    header_libs: ["libutils_headers"],
+
+    owner: "broadcom",
+
+    proprietary: true,
+    shared_libs: [
+        "libcutils",
+        "liblog",
+    ],
+    static_libs: select(soong_config_variable("brcm_libbt", "have_a2dp_offload"), {
+        true: ["libbt-brcm_a2dp"],
+        default: [],
+    }),
+    srcs: [
+        "src/bt_vendor_brcm.c",
+        "src/conf.c",
+        "src/hardware.c",
+        "src/upio.c",
+        "src/userial_vendor.c",
+    ],
+}
